@@ -16,6 +16,7 @@ defmodule ElixirSnake.Scene.Game do
     up: {0, -1},
     down: {0, 1},
   }
+  @pellet_score 100
 
   # Initialize the game scene
   def init(_arg, opts) do
@@ -34,6 +35,11 @@ defmodule ElixirSnake.Scene.Game do
       trunc(vp_tile_height / 2)
     }
 
+    pellet_start_coords = {
+      vp_tile_width - 2,
+      trunc(vp_tile_height / 2)
+    }
+
     {:ok, timer} = :timer.send_interval(@frame_ms, :frame)
 
     state = %{
@@ -47,7 +53,8 @@ defmodule ElixirSnake.Scene.Game do
       # Game objects
       objects: %{snake: %{body: [snake_start_coords],
                           size: @snake_starting_size,
-                          direction: {1, 0}}}
+                          direction: {1, 0}},
+                 pellet: pellet_start_coords}
     }
 
     # Update the graph and push it to be rendered
@@ -68,6 +75,11 @@ defmodule ElixirSnake.Scene.Game do
     {:noreply, %{state | frame_count: frame_count + 1}}
   end
 
+  # Pellet is simply a coordinate pair
+  defp draw_object(graph, :pellet, {pellet_x, pellet_y}) do
+    draw_tile(graph, pellet_x, pellet_y, fill: :yellow, id: :pellet)
+  end
+
   # Move the snake to its next position according to the direction. Also limits the size.
   defp move_snake(%{objects: %{snake: snake}} = state) do
     [head | _] = snake.body
@@ -75,7 +87,47 @@ defmodule ElixirSnake.Scene.Game do
 
     new_body = Enum.take([new_head_pos | snake.body], snake.size)
 
-    put_in(state, [:objects, :snake, :body], new_body)
+    state
+    |> put_in([:objects, :snake, :body], new_body)
+    |> maybe_eat_pellet(new_head_pos)
+  end
+
+  # We're on top of a pellet! :)
+  defp maybe_eat_pellet(state = %{objects: %{pellet: pellet_coords}}, snake_head_coords)
+  when pellet_coords == snake_head_coords do
+    state
+    |> randomize_pellet()
+    |> add_score(@pellet_score)
+    |> grow_snake()
+  end
+
+  # No pellet in sight. :(
+  defp maybe_eat_pellet(state, _), do: state
+  
+  # Place the pellet somewhere in the map. It should not be on top of the snake.
+  defp randomize_pellet(state = %{tile_width: w, tile_height: h}) do
+    pellet_coords = {
+      Enum.random(0..(w-1)),
+      Enum.random(0..(h-1)),
+    }
+
+    validate_pellet_coords(state, pellet_coords)
+  end
+
+  # Keep trying until we get a valid position
+  defp validate_pellet_coords(state = %{objects: %{snake: %{body: snake}}}, coords) do
+    if coords in snake, do: randomize_pellet(state),
+      else: put_in(state, [:objects, :pellet], coords)
+  end
+
+  # Increments the player's score.
+  defp add_score(state, amount) do
+    update_in(state, [:score], &(&1 + amount))
+  end
+
+  # Increments the snake size.
+  defp grow_snake(state) do
+    update_in(state, [:objects, :snake, :size], &(&1 + 1))
   end
 
   defp move(%{tile_width: w, tile_height: h}, {pos_x, pos_y}, {vec_x, vec_y}) do
