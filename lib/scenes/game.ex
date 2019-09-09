@@ -90,8 +90,18 @@ defmodule ElixirSnake.Scene.Game do
     state
     |> put_in([:objects, :snake, :body], new_body)
     |> maybe_eat_pellet(new_head_pos)
+    |> maybe_die()
   end
 
+  # oh no
+  defp maybe_die(state = %{viewport: vp, objects: %{snake: %{body: snake}}, score: score}) do
+    # If ANY duplicates were removed, this means we overlapped at least once
+    if length(Enum.uniq(snake)) < length(snake) do
+      ViewPort.set_root(vp, {@game_over_scene, score})
+    end
+    state
+  end
+  
   # We're on top of a pellet! :)
   defp maybe_eat_pellet(state = %{objects: %{pellet: pellet_coords}}, snake_head_coords)
   when pellet_coords == snake_head_coords do
