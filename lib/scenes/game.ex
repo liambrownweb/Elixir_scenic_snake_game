@@ -5,6 +5,7 @@ defmodule ElixirSnake.Scene.Game do
   import Scenic.Primitives, only: [rrect: 3, text: 3]
 
   # Constants
+  @game_over_scene ElixirSnake.Scene.GameOver
   @graph Graph.build(font: :roboto, font_size: 36)
   @tile_size 32
   @tile_radius 8
